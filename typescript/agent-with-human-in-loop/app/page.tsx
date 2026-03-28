@@ -35,14 +35,27 @@ export default function Home() {
     addLog("status", `Starting agent for ${firstName} ${lastName}...`);
 
     // Convert resume to base64 for transport
-    const resumeBase64 = await new Promise<string>((resolve) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = reader.result as string;
-        resolve(result.split(",")[1]); // strip data URL prefix
-      };
-      reader.readAsDataURL(resumeFile);
-    });
+    let resumeBase64: string;
+    try {
+      resumeBase64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result as string;
+          resolve(result.split(",")[1]); // strip data URL prefix
+        };
+        reader.onerror = () => {
+          reject(reader.error ?? new Error("Failed to read resume file"));
+        };
+        reader.onabort = () => {
+          reject(new Error("Resume file read was aborted"));
+        };
+        reader.readAsDataURL(resumeFile);
+      });
+    } catch {
+      setPhase("error");
+      addLog("error", "Failed to read resume file");
+      return;
+    }
 
     const res = await fetch("/api/agent", {
       method: "POST",
@@ -64,6 +77,8 @@ export default function Home() {
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
+    let eventType = "";
+    let eventData = "";
 
     while (true) {
       const { done, value } = await reader.read();
@@ -74,9 +89,6 @@ export default function Home() {
       // Parse SSE events from the buffer
       const lines = buffer.split("\n");
       buffer = lines.pop() || "";
-
-      let eventType = "";
-      let eventData = "";
 
       for (const line of lines) {
         if (line.startsWith("event: ")) {

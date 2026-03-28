@@ -25,10 +25,6 @@ export function createSession(id: string, debuggerUrl: string, bbSessionId: stri
   return state;
 }
 
-export function getSession(id: string): SessionState | undefined {
-  return sessions.get(id);
-}
-
 export function setQuestion(
   id: string,
   question: string,
